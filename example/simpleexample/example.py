@@ -16,11 +16,16 @@ class HelloWorld(cloc.Cloc):
         print("Greetings with object Greeting")
         return Greeting(greets)
 
-    def hallo(self,_):
+    def hallo(self,arg1,arg2):
         print('Hallo')
 
 
 
 h = HelloWorld()
-print(h.from_file("bonjour(1). bonjour(2). bonjour(bonjour). hello('hi')"))
+print(h.from_str("bonjour(1). bonjour(2). bonjour(hi). hello('hi'). hallo(1,2)."))
 
+
+# Output
+# Greetings with object Greeting
+# Hallo
+# [1, 2, 'hi', <__main__.Greeting object at 0x7f1719b6d840>]

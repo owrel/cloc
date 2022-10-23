@@ -21,14 +21,18 @@ pip install .
 ```python
 import cloc
 
-# returns 'words'
-foobar.pluralize('word')
+class HelloWorld(cloc.Cloc):
+    def __init__(self) -> None:
+        super().__init__()
+        
+    def hello(self):
+        print("HelloWorld")
 
-# returns 'geese'
-foobar.pluralize('goose')
 
-# returns 'phenomenon'
-foobar.singularize('phenomena')
+
+h = HelloWorld()
+h.from_str("hello.")
+# Output: HelloWorld
 ```
 
 ## Contributing
