@@ -10,7 +10,7 @@ setup(
     version='0.1',
     packages=find_packages(),
     install_requires=required,
-    author='Aurélien SIMON',
+    author='Owrel',
     keywords=['clingo','asp','clingotopython'],
     url="https://github.com/Owrel/cloc.git"
 )

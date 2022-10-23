@@ -5,42 +5,25 @@ from clingo import Symbol, SymbolType
 import math
 import types
 
-
-
-class UnreferencedSupplierConsumer(Exception):
-    pass
-
-
-class UnreferencedFunction(Exception):
-    pass
-
-
-class WrongKeyWordCall(Exception):
-    pass
-
-
-class WrongPriorityFormat(Exception):
-    pass
-
-
-
-
-
+class UnreferencedSupplierConsumer(Exception): pass
+class UnreferencedFunction(Exception): pass
+class WrongKeyWordCall(Exception): pass
+class WrongPriorityFormat(Exception): pass
 
 class Cloc:
     def __init__(self) -> None:
-        # Behaviour
+        # Behavior
         self._convert_unreferenced_supplier_consumer_to_str = True
         self._ignore_key_words = False
         self._skip_on_unreferenced_function = False
         self._skip_on_unreferenced_supplier_consumer = False
-        self._use_reference_table_for_procedure = True
+        self._use_reference_table_for_supplier = True
         self._use_reference_table_for_function = True
 
-        # Informations/debug info
-        self._show_warning_consumer = True
-        self._show_warning_procedure = True
-        self._show_warning_on_skip = True
+        # Information/debug info
+        self._warning_on_procedure = True
+        self._warning_on_skip_unreferenced_function = True
+        self._warning_on_skip_unreferenced_supplier_consumer = True
         self._warning_on_unreferenced_supplier_conversion = True
 
         # Properties
@@ -94,7 +77,7 @@ class Cloc:
     def _execute(self, obj, symbol: Symbol, trace: List):
         new_trace = trace.copy()
         if symbol.type == SymbolType.Function:
-            new_trace.append(symbol.name)
+            
             if symbol.name in obj._keys and not obj._ignore_key_words:
                 if symbol.name == "root":
                     if symbol.arguments:
@@ -111,7 +94,8 @@ class Cloc:
                         return new_trace
 
                 if symbol.name == "priority":
-                    if not symbol.arguments:
+                    print(len(symbol.arguments))
+                    if not symbol.arguments or len(symbol.arguments) != 2:
                         raise WrongKeyWordCall(
                             f"Key `priority' should be call with 2 arguments, expected:  priority(int+|\"last\",symbol), found {symbol}")
                     else:
@@ -122,72 +106,78 @@ class Cloc:
                         obj._delayed_calls.append(d)
                         return d
 
-            elif obj._exist(obj, symbol.name):
-                if symbol.arguments:
-                    args_list = []
-                    for arg in symbol.arguments:
-                        args_list.append(obj._execute(
-                            obj=obj, symbol=arg, trace=new_trace))
+            else :
+                new_trace.append(symbol.name)
+                if obj._exist(obj, symbol.name):
+                    if symbol.arguments:
+                        
+                        args_list = []
+                        for arg in symbol.arguments:
+                            args_list.append(obj._execute(
+                                obj=obj, symbol=arg, trace=new_trace))
 
-                    args_str = obj._args_to_str(args_list, "args_list")
-                    call_str = f"obj.{symbol.name}({args_str})"
-                    if self._use_reference_table_for_function and not symbol.name in obj._reference_table_symbol_name_ignore:
-                        key = obj._get_key_from_symbol(symbol)
-                        if key in obj._reference_table:
-                            obj._reference_table_call[key] += 1
-                            return obj._reference_table[key]
-                        else:
-                            obj._reference_table[key] = eval(call_str)
-                            obj._reference_table_call[key] = 1
-                            return obj._reference_table[key]
-                    else:
-                        return eval(call_str)
-                else:
-                    bound = eval(f"obj.{symbol.name}")
-                    if isinstance(bound, types.MethodType):
-                        if obj._use_reference_table_for_procedure and not symbol.name in obj._reference_table_symbol_name_ignore:
+                        args_str = obj._args_to_str(args_list, "args_list")
+                        call_str = f"obj.{symbol.name}({args_str})"
+                        if self._use_reference_table_for_function and not symbol.name in obj._reference_table_symbol_name_ignore:
                             key = obj._get_key_from_symbol(symbol)
-                            if key in obj._reference_table :
-                                ret = obj._reference_table[key]
+                            if key in obj._reference_table:
                                 obj._reference_table_call[key] += 1
+                                return obj._reference_table[key]
                             else:
-                                obj._reference_table[key] = eval(
-                                    f"obj.{symbol.name}()")
+                                obj._reference_table[key] = eval(call_str)
                                 obj._reference_table_call[key] = 1
-                                ret = obj._reference_table[key]
+                                return obj._reference_table[key]
                         else:
-                            ret = f"obj.{symbol.name}()"
+                            return eval(call_str)
                     else:
-                        ret = bound
+                        bound = eval(f"obj.{symbol.name}")
+                        if isinstance(bound, types.MethodType):
+                            if obj._use_reference_table_for_supplier and not symbol.name in obj._reference_table_symbol_name_ignore:
+                                key = obj._get_key_from_symbol(symbol)
+                                if key in obj._reference_table :
+                                    ret = obj._reference_table[key]
+                                    obj._reference_table_call[key] += 1
+                                else:
+                                    obj._reference_table[key] = eval(
+                                        f"obj.{symbol.name}()")
+                                    obj._reference_table_call[key] = 1
+                                    ret = obj._reference_table[key]
+                            else:
+                                ret = f"obj.{symbol.name}()"
+                        else:
+                            ret = bound
 
-                    if not ret and obj._show_warning_procedure:
-                        print(
-                            f"WARNING: procedure {symbol.name} identified")
-                    return ret
+                        if not ret and obj._warning_on_procedure:
+                            print(
+                                f"WARNING: procedure {symbol.name} (no return) identified")
+                        return ret
 
-            else:
-                if symbol.arguments:  # unreferenced function case
-                    if obj._skip_on_unreferenced_function:
-                        print(
-                            f"WARNING: Skipping unreferenced symbol {symbol.name}/{len(symbol.arguments)} ")
-                        return None
-                    else:
-                        raise UnreferencedFunction(
-                            f"Function {symbol.name}/{len(symbol.arguments)} is not referenced")
-                else:  # unreferenced consumer/supplier case
-                    if obj._convert_unreferenced_supplier_consumer_to_str:
-                        if obj._warning_on_unreferenced_supplier_conversion:
-                            print(
-                                f"WARNING: converting {symbol.name} to string")
-                        return symbol.name
-                    else:
-                        if obj._skip_on_unreferenced_supplier_consumer:
-                            print(
-                                f"WARNING: Skipping unreferenced symbol {symbol.name}/{len(symbol.arguments)} ")
+                else:
+                    if symbol.arguments:  # unreferenced function case
+                        if obj._skip_on_unreferenced_function:
+                            if obj._warning_on_skip_unreferenced_function:
+                                print(
+                                    f"WARNING: Skipping unreferenced symbol {symbol.name}/{len(symbol.arguments)} (not recommended)")
                             return None
                         else:
-                            raise UnreferencedSupplierConsumer(
-                                f"Supplier/consumer {symbol.name}/{len(symbol.arguments)}  is not referenced")
+                            raise UnreferencedFunction(
+                                f"Function {symbol.name}/{len(symbol.arguments)} is not referenced")
+                    else:  # unreferenced consumer/supplier case
+                        if obj._convert_unreferenced_supplier_consumer_to_str:
+                            if obj._warning_on_unreferenced_supplier_conversion:
+                                print(
+                                    f"WARNING: converting {symbol.name} to string")
+                            return symbol.name
+                        else:
+                            if obj._skip_on_unreferenced_supplier_consumer:
+
+                                if obj._warning_on_skip_unreferenced_supplier_consumer:
+                                    print(
+                                        f"WARNING: Skipping unreferenced symbol {symbol.name}/{len(symbol.arguments)}")
+                                return None
+                            else:
+                                raise UnreferencedSupplierConsumer(
+                                    f"Supplier/consumer {symbol.name}/{len(symbol.arguments)}  is not referenced")
 
         elif symbol.type == SymbolType.Number:
             return symbol.number
