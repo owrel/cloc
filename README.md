@@ -14,8 +14,6 @@ In the project folder, install Cloc with pip:
 ```bash
 pip install .
 ```
-
-
 ## Usage
 ```python
 import cloc
@@ -30,6 +28,8 @@ h = HelloWorld()
 h.from_str("hello.")
 # Output: HelloWorld
 ```
+
+More examples available [here](https://github.com/Owrel/cloc/tree/master/examples)
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
