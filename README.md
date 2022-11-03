@@ -7,7 +7,7 @@ Cloc (CLingo Object Caller) is a Python library for converting ASP facts, that c
 Import the Github [repository](https://github.com/Owrel/cloc.git)
 
 ```bash
-git clone https://github.com/Owrel/cloc.gits
+git clone https://github.com/Owrel/cloc.git
 ```
 
 In the project folder, install Cloc with pip:
