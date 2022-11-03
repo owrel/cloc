@@ -1,15 +1,9 @@
-#TODO:
-#   - Converting unreferenced /0 to str
-#   - Ignore key words
-#   - Skip unreferencement
-#   - Table reference
-
 import cloc
 
 class Unreferencement(cloc.Cloc):
     def __init__(self) -> None:
         super().__init__()
-        self._warning_on_unreferenced_supplier_conversion = False
+        self._warning_on_unreferenced_symbol_conversion = False
 
     def instance(self,arg):
         print('Arg:', arg)
@@ -43,7 +37,7 @@ print()
 class Unreferencement(cloc.Cloc):
     def __init__(self) -> None:
         super().__init__()
-        self._convert_unreferenced_supplier_consumer_to_str = False
+        self._convert_unreferenced_symbol_to_str = False
     def instance(self,arg):
         print(arg)
         print(type(arg))
@@ -60,8 +54,8 @@ print()
 class Unreferencement(cloc.Cloc):
     def __init__(self) -> None:
         super().__init__()
-        self._convert_unreferenced_supplier_consumer_to_str = False
-        self._skip_on_unreferenced_supplier_consumer = True
+        self._convert_unreferenced_symbol_to_str = False
+        self._skip_on_unreferenced_symbol = True
     def instance(self,arg):
         print(arg)
         print(type(arg))

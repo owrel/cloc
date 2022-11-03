@@ -5,32 +5,36 @@ from clingo import Symbol, SymbolType
 import math
 import types
 
-class UnreferencedSupplierConsumer(Exception): pass
+class UnreferencedSymbol(Exception): pass
 class UnreferencedFunction(Exception): pass
 class WrongKeyWordCall(Exception): pass
 class WrongPriorityFormat(Exception): pass
+class UnexpectedBehavior(Exception): pass
 
 class Cloc:
     def __init__(self) -> None:
         # Behavior
-        self._convert_unreferenced_supplier_consumer_to_str = True
+        self._convert_unreferenced_symbol_to_str = True
         self._ignore_key_words = False
         self._skip_on_unreferenced_function = False
-        self._skip_on_unreferenced_supplier_consumer = False
-        self._use_reference_table_for_supplier = True
-        self._use_reference_table_for_function = True
+        self._skip_on_unreferenced_symbol = False
+        self._use_memoize_for_symbol = True
+        self._use_memoize_for_function = True
+
+        self._use_default_on_unreferenced_function = False
+        self._use_default_on_unreferenced_symbol = False
 
         # Information/debug info
         self._warning_on_procedure = True
         self._warning_on_skip_unreferenced_function = True
-        self._warning_on_skip_unreferenced_supplier_consumer = True
-        self._warning_on_unreferenced_supplier_conversion = True
+        self._warning_on_skip_unreferenced_symbol = True
+        self._warning_on_unreferenced_symbol_conversion = True
 
         # Properties
-        self._reference_table = {}
-        self._reference_table_call = {}
+        self._memoize = {}
+        self._memoize_call = {}
         self._keys = ["root", "trace", "priority"]
-        self._reference_table_symbol_name_ignore: List[str] = []
+        self._memoize_symbol_name_ignore: List[str] = []
         self._delayed_calls: List[DelayedCall] = []
 
     def from_str(self, str: str):
@@ -75,6 +79,7 @@ class Cloc:
         return ret
 
     def _execute(self, obj, symbol: Symbol, trace: List):
+ 
         new_trace = trace.copy()
         if symbol.type == SymbolType.Function:
             
@@ -94,7 +99,6 @@ class Cloc:
                         return new_trace
 
                 if symbol.name == "priority":
-                    print(len(symbol.arguments))
                     if not symbol.arguments or len(symbol.arguments) != 2:
                         raise WrongKeyWordCall(
                             f"Key `priority' should be call with 2 arguments, expected:  priority(int+|\"last\",symbol), found {symbol}")
@@ -110,7 +114,6 @@ class Cloc:
                 new_trace.append(symbol.name)
                 if obj._exist(obj, symbol.name):
                     if symbol.arguments:
-                        
                         args_list = []
                         for arg in symbol.arguments:
                             args_list.append(obj._execute(
@@ -118,30 +121,29 @@ class Cloc:
 
                         args_str = obj._args_to_str(args_list, "args_list")
                         call_str = f"obj.{symbol.name}({args_str})"
-                        if self._use_reference_table_for_function and not symbol.name in obj._reference_table_symbol_name_ignore:
+                        if self._use_memoize_for_function and not symbol.name in obj._memoize_symbol_name_ignore:
                             key = obj._get_key_from_symbol(symbol)
-                            if key in obj._reference_table:
-                                obj._reference_table_call[key] += 1
-                                return obj._reference_table[key]
+                            if key in obj._memoize:
+                                obj._memoize_call[key] += 1
                             else:
-                                obj._reference_table[key] = eval(call_str)
-                                obj._reference_table_call[key] = 1
-                                return obj._reference_table[key]
+                                obj._memoize[key] = eval(call_str)
+                                obj._memoize_call[key] = 1
+                            return obj._memoize[key]
                         else:
                             return eval(call_str)
                     else:
                         bound = eval(f"obj.{symbol.name}")
                         if isinstance(bound, types.MethodType):
-                            if obj._use_reference_table_for_supplier and not symbol.name in obj._reference_table_symbol_name_ignore:
+                            if obj._use_memoize_for_symbol and not symbol.name in obj._memoize_symbol_name_ignore:
                                 key = obj._get_key_from_symbol(symbol)
-                                if key in obj._reference_table :
-                                    ret = obj._reference_table[key]
-                                    obj._reference_table_call[key] += 1
+                                if key in obj._memoize :
+                                    ret = obj._memoize[key]
+                                    obj._memoize_call[key] += 1
                                 else:
-                                    obj._reference_table[key] = eval(
+                                    obj._memoize[key] = eval(
                                         f"obj.{symbol.name}()")
-                                    obj._reference_table_call[key] = 1
-                                    ret = obj._reference_table[key]
+                                    obj._memoize_call[key] = 1
+                                    ret = obj._memoize[key]
                             else:
                                 ret = f"obj.{symbol.name}()"
                         else:
@@ -152,7 +154,10 @@ class Cloc:
                                 f"WARNING: procedure {symbol.name} (no return) identified")
                         return ret
 
-                else:
+                else: # If unreferenced
+
+                    if obj._skip_on_unreferenced_function and obj._use_default_on_unreferenced_function:
+                        print('WARNING: Incompatible behavior detected, <_skip_on_unreferenced_function = True> and <_use_default_on_unreferenced_function = True>, skipping...')
                     if symbol.arguments:  # unreferenced function case
                         if obj._skip_on_unreferenced_function:
                             if obj._warning_on_skip_unreferenced_function:
@@ -160,24 +165,64 @@ class Cloc:
                                     f"WARNING: Skipping unreferenced symbol {symbol.name}/{len(symbol.arguments)} (not recommended)")
                             return None
                         else:
+                            if obj._use_default_on_unreferenced_function:
+                                args_list = [symbol.name]
+                                new_trace.append('default')
+                                for arg in symbol.arguments:
+                                    args_list.append(obj._execute(
+                                        obj=obj, symbol=arg, trace=new_trace))
+
+                                args_str = obj._args_to_str(args_list, "args_list")
+
+                                call_str = f"obj.default({args_str})"
+                                if self._use_memoize_for_function and not symbol.name in obj._memoize_symbol_name_ignore:
+                                    key = f"default({str(args_list)})"
+                                    if key in obj._memoize:
+                                        obj._memoize_call[key] += 1
+                                    else:
+                                        obj._memoize[key] = eval(call_str)
+                                        obj._memoize_call[key] = 1
+                                    return obj._memoize[key]
+                                else:
+                                    return eval(call_str)
                             raise UnreferencedFunction(
                                 f"Function {symbol.name}/{len(symbol.arguments)} is not referenced")
-                    else:  # unreferenced consumer/supplier case
-                        if obj._convert_unreferenced_supplier_consumer_to_str:
-                            if obj._warning_on_unreferenced_supplier_conversion:
+                    else:  # unreferenced symbol/symbol case
+                        if obj._skip_on_unreferenced_symbol and obj._use_default_on_unreferenced_symbol:
+                            print('WARNING: Incompatible behavior detected, <_skip_on_unreferenced_symbol = True> and <_use_default_on_unreferenced_symbol = True>, skipping...')
+                        
+                        if obj._convert_unreferenced_symbol_to_str and obj._use_default_on_unreferenced_symbol:
+                            print('WARNING: Incompatible behavior detected, <_convert_unreferenced_symbol_to_str = True> and <_use_default_on_unreferenced_symbol = True>, skipping...')
+
+                        if obj._convert_unreferenced_symbol_to_str:
+                            if obj._warning_on_unreferenced_symbol_conversion:
                                 print(
                                     f"WARNING: converting {symbol.name} to string")
                             return symbol.name
                         else:
-                            if obj._skip_on_unreferenced_supplier_consumer:
+                            if obj._skip_on_unreferenced_symbol:
 
-                                if obj._warning_on_skip_unreferenced_supplier_consumer:
+                                if obj._warning_on_skip_unreferenced_symbol:
                                     print(
                                         f"WARNING: Skipping unreferenced symbol {symbol.name}/{len(symbol.arguments)}")
                                 return None
                             else:
-                                raise UnreferencedSupplierConsumer(
-                                    f"Supplier/consumer {symbol.name}/{len(symbol.arguments)}  is not referenced")
+                                if  obj._use_default_on_unreferenced_symbol:
+                                    new_trace.append('default')
+                                    call_str = f"obj.default('{symbol.name}')"
+                                    if self._use_memoize_for_function and not symbol.name in obj._memoize_symbol_name_ignore:
+                                        key = call_str
+                                        if key in obj._memoize:
+                                            obj._memoize_call[key] += 1
+                                        else:
+                                            obj._memoize[key] = eval(call_str)
+                                            obj._memoize_call[key] = 1
+                                        return obj._memoize[key]
+                                    else:
+                                        return eval(call_str)
+
+                                raise UnreferencedSymbol(
+                                    f"symbol/symbol {symbol.name}/{len(symbol.arguments)}  is not referenced")
 
         elif symbol.type == SymbolType.Number:
             return symbol.number
@@ -186,7 +231,10 @@ class Cloc:
         elif symbol.type == SymbolType.Infimum:
             return math.inf
         else:
-            print(f"Don't know how to handle {symbol.type}: {symbol}")
+            raise UnexpectedBehavior(f"""Don't know how to handle {symbol.type}: {symbol}, please report the the message on github issues:
+            trace : {new_trace},
+            symbol : {symbol}
+            """)
 
     def _get_key_from_symbol(self, symbol: Symbol):
         key = str(symbol)
@@ -207,6 +255,9 @@ class Cloc:
             ret = False
 
         return ret
+
+    def default(self, *args: Any, **kwds: Any):
+        raise NotImplemented("Should be override :)")
 
 
 
